@@ -136,7 +136,7 @@ def reference():
         id, question_text и pub_date
     Сохраненные значения могут быть изменены: q.question_text="what's up?"  # после снова необходимо выполнить q.save()
     Можно фильтровать записи, например по id: Question.objects.filter(id=2); или по текстовым вхождениям:
-        Question.objects.filter(question_text__startswith="What") # --> <QuerySet [<Question: What's ip?>]>
+        Question.objects.filter(question_text__startswith="What") # --> <QuerySet [<Question: What's up?>]>
     Если предполагается получить только одну запись, то можно использовать метод get, если же записей больше, то нужно
         использовать метод filter
     Записи можно получить по id или по primary key (pk), например: Question.objects.get(pk=1)
@@ -191,7 +191,7 @@ def reference():
          и сопоставляет все доступные ему шаблоны адресов --> находит 'polls/', обрезает его, получает 'polls/' и
          отправляет оставшийся текст - '34/' в polls.urls --> текст '34/' сопоставляется с шаблоном '<int:question_id>/'
          --> вызывается метод detail() -->  question_id=34 приходит от <int:question_id>; тут угловые скобки захватывают
-         часть часть url  и отправляют ее как ключевой аргумент в функцию. Тут часть :question_id> определяет имя котрое
+         часть url и отправляют ее как ключевой аргумент в функцию. Тут часть :question_id> определяет имя котрое
          будет использовано для идентификации подходящего шаблона, а <int: - это конвертер, который определяет, какие
          шаблоны должны соответствовать этой части URL
 
@@ -229,7 +229,7 @@ def reference():
     Также возможно использовать сокращение для ответа с отрисованной страницей. Для этого нужно импортировать метод
         render из django.shortcuts: from django.shortcuts import render. Функция render первым аргументом принимает
         объект запроса, вторым аргументом - имя шаблона и третьим, опциональным параметром словарь который является
-        контекстом для шаблона. Далее, отрисованная тсраница попадает в объект HttpResponse
+        контекстом для шаблона. Далее, отрисованная страница попадает в объект HttpResponse
     Если искомая страница не найдена, то нужно возбудить исключение 404. Делается это с помощью метода Http404. Пример
         кода:
         from django.http import Http404 # импорт модуля Http404
@@ -241,7 +241,7 @@ def reference():
                 raise Http404('Question does not exist')    # возбуждаем исключение, которое вернет ошибку http 404
             return render(request, 'polls/detail.html', {'question': question}) # в случае успеха отправляем
             # отрисованную страницу
-    Сокращенный вариант поптыки получения страницы или возбуждения исключения осуществляется через метод
+    Сокращенный вариант попытки получения страницы или возбуждения исключения осуществляется через метод
         get_object_or_404. Эта функция принимает django модель в качестве первого аргумента, далее идет произвольное
         число параметров (те же самые, которые могут быть переданы методу модели get):
         from django.shortcuts import get_object_or_404, render
@@ -256,12 +256,57 @@ def reference():
         посмотрит в polls.urls и найдет там путь с соответствующим именем:
         <a href="{% url 'detail' question.id %}">...</a>
         Теперь для изменения путей нужно лишь внести изменения в первый аргумент метода path:
-        path('specifics/<int:question_id>/', views.detail, name='detail')   # That's it :)
+        path('specifics/<int:question_id>/', views.detail, name='detail')   # Тут "specifics" - пример измененного пути.
+        # That's it :)
 
     ПРОСТРАНСТВО ИМЕН URL
     Чтобы django мог понять какой адрес нужно использовать при одинаковых менах в путях нужно добавить пространство имен
         в URLconf в polls/urls.py так: app_name = 'polls', а в шаблоне, внутри атрибута href сделать такие изменения:
         {% url 'polls:detail' question.id %}
+
+    НАПИСАНИЕ ПРОСТОЙ ФОРМЫ
+    Пример кода:
+        <form action="{% url 'polls:vote' question.id %}" method="post">
+            {% csrf_token %}
+            {% for choice in question.choice_set.all%}
+            <input type="radio" name="choice" id="choice{{forloop.counter}}" value="{{choice.id}}">
+            <label for="choice{{forloop.counter}}">{{choice.choice_text}}</label><br>
+            {% endfor %}
+            <input type="submit" value="Vote">
+        </form>
+        Так как форма содержит в себе инпуты с типом radio, то на сервер будет отправлен выбранный choice id.
+        action содержит сгенерированный адрес, состоящий из пути с именем vote, ищется в пространстве адресов polls (
+        polls/urls.py  urlpatterns = [... path('<int:question_id>/vote/', views.vote, name='vote')])
+        method - post. Данный метод следует выбирать всегда в случае изменения  данных на сервере.
+        forloop.counter - содержит счетчик цикла for
+        csrf_token - данный токен тегирует каждый шаблон который отправляет запросы зменяющие данные на сервере. Данный
+        токен является встроенной защитой от межсайтового скриптинга (CSRF).
+    Пример кода функции vote:
+        def vote(request, question_id):
+            question = get_object_or_404(Question, pk=question_id)
+            try:
+                selected_choice = question.choice_set.get(pk=request.POST['choice'])
+            except (KeyError, Choice.DoesNotExist):
+                return render(request, 'polls/detail.html', {
+                    'question': question,
+                    'error_message': "You didn't select a choice."
+                })
+            else:
+                selected_choice.votes += 1
+                selected_choice.save()
+            return HttpResponseRedirect(reverse('polls:results', args=(question_id, )))
+        request.POST - объект подобный словарю, позволяющий получить доступ к отправленным данным (содержимое запроса)
+        по ключу (в данном случае 'choice'). request.POST['choice'] возвращает id выбранного choice как строку (всегда
+        как строку). Подобным образом данные могут быть извлечены и из GET запроса.
+        В отличии от HttpResponse, HttpResponseRedirect принимает только один аргумент - адрес, куда пользователь будет
+        перенаправлен. HttpResponseRedirect должен быть использован после каждого успешного POST-запроса.
+        Функция reverse помогает избежать хардкода в функции во view. В функцию передается имя view, которому нужно
+        передать управление и часть шаблона адреса, указывающего на эту view (docsApp/urls.py --> urlpatterns = [
+        ..., path('polls/', include('polls.urls'))]). Шаблон адреса в результате будет выглядеть так:
+        '/polls/3/results/' , где 3 - это question_id. Далее будет вызвана view results и показан финальный результат.
+    !При одновременно голосовании вычисления количество голосов и запись их в БД будут не верны. Проблема в Race
+    Condition. Она может быть решена с помощью функции F()
+
 
     """
 
