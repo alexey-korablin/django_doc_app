@@ -307,6 +307,36 @@ def reference():
     !При одновременно голосовании вычисления количество голосов и запись их в БД будут не верны. Проблема в Race
     Condition. Она может быть решена с помощью функции F()
 
+    ИСПРАВЛЕНИЕ URLconf И VIEWS
+    В файле polls/urls.py сделать изменения:
+        urlpatterns = [
+            path('', views.IndexView.as_view(), name='index'),
+            path('<int:pk>/', views.DetailView.as_view(), name='detail'),
+            path('<int:pk>/results/', views.ResultsView.as_view(), name='results'),
+            ...
+        ]
+    В файле polls/views.py сделать изменения:
+        ...
+        from django.views import generic
+        ...
+        class IndexView(generic.ListView):
+            template_name = 'polls/index.html'
+            def get_queryset(self):
+                return Question.objects.order_by('-pub_date')[:5]
+        class DetailView(generic.DetailView):
+            model = Question
+            template_name = 'polls/detail.html'
+        class ResultsView(generic.DetailView):
+            model = Question
+            template_name = 'polls/result.html'
+        Выше использовано 2 джинерик вью(ДВ): ListView и DetailView. Они представляют собой концепцию отображения списка
+        объектов и отображение деталей определенного типа объекта. Каждый ДВ должен знать с какой моделью ему
+        взаимодействовать, за это отвечает атрибут model: model = Question. DetailView ожидает получить primary key
+        (pk), которое он получает из url
+        По умолчанию DetailView использует шаблон <app name>/<model name>_detail.html в данном случае -
+        polls/question_detail.html . Атрибут template_name позволяет указать нужный шаблон.
+        Подобным образом работает и ListView. Адрес шаблона по умолчанию: <app name>/<model name>_list.html, атрибут
+        template_name используется для тех же целей.
 
     """
 
